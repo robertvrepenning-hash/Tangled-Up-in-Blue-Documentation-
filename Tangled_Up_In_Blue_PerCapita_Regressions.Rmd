@@ -1,0 +1,84 @@
+---
+title: "R&PF Per Capita Results"
+output: html_document
+date: "2025-08-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(tidyverse)
+library(readxl)
+library(fixest)
+library(purrr)
+library(broom)
+library(Hmisc)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(corrplot)
+library(urca)
+library(apaTables)
+library(rlang)
+```
+
+```{r}
+dat <- read_xlsx("Tangled_Up_In_Blue_Data.xlsx")
+```
+
+```{r}
+dat <- dat |> mutate(year = as.numeric(year)) |>          
+  arrange(ori, year) |>                       
+  group_by(ori) |>                            
+  mutate(
+  S_pc = S_lag / pop100k,
+  S_pc_pop = S_pc * pop100k,
+  S_pc_black_pct = S_pc * NH_Black_Pct,
+  S_pc_d = S_pc - dplyr::lag(S_pc),
+  S_pc_d_pop = S_pc_d * pop100k,
+  S_pc_d_black_pct = S_pc_d * NH_Black_Pct
+)
+```
+
+```{r}
+individual_model <- function(dv, dat, term, iv){
+  formula <- paste0(dv, " ~ Unemployment_Rate + NH_White_Pct + Age_15_24_Pct + 
+                            Educ_Less_HS_Pct + Exp_Per_Capita ", term, "|
+                            year + ori|", iv , "~ copseligible_hiring_pc_lag + award_nonhiring_pc_lag + 
+                            apply_hiring_lag + apply_nonhiring_lag")
+
+model_object <- feols(as.formula(formula), data = dat, cluster ~ ori, weights = ~w1980factor)
+  print(summary(model_object))
+}
+
+term_models <- function(term, dv, dat, iv){
+  map(dv, ~individual_model(dv = .x, term = term, dat = dat, iv = iv))
+}
+
+all_models <- function(dv, terms, dat, iv){
+  map(terms, ~term_models(term = .x, dv = dv, dat = dat, iv = iv))
+}
+```
+
+```{r}
+levels_pc_treatment_terms <- c(" ", "+ S_pc_pop", "+ S_pc_black_pct")
+
+fd_pc_treatment_terms <- c(" ", "+ S_pc_d_pop", "+ S_pc_d_black_pct")
+```
+
+## Levels 
+
+```{r}
+levels_per_capita_murder_groups <- c("murder_total_pc")
+
+levels_pc_murder_results <- all_models(levels_per_capita_murder_groups, levels_pc_treatment_terms, dat, iv = "S_pc")
+```
+
+## First Difference 
+
+```{r}
+fd_per_capita_murder_groups <- c("murder_total_pc_d")
+
+fd_pc_murder_results <- all_models(fd_per_capita_murder_groups, fd_pc_treatment_terms, dat, iv = "S_pc_d")
+```
+
+

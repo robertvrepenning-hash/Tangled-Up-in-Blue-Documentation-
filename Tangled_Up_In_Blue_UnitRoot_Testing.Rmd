@@ -1,0 +1,311 @@
+---
+title: "Chalfin Response Unit Root Testing"
+output: html_document
+date: "2025-06-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(readxl)
+library(purrr)
+library(dplyr)
+library(GGally)
+library(corrplot)
+library(urca)
+library(ggpubr)
+library(gt)
+library(flextable)
+library(psych)
+library(plm)
+library(ivreg)
+library(writexl)
+```
+
+```{r}
+dat <- read_xlsx("Tangled_Up_In_Blue_Data.xlsx")
+
+nested_data <- dat |> 
+  group_by(agency_name) |> 
+  arrange(year, .by_group = TRUE) |>
+  nest()
+```
+
+## Murder
+
+### Levels
+
+```{r}
+total_level_ur_dat <- dat |>
+  arrange(ori, year) |>
+  filter(!is.na(murder_tot_total)) |>
+  group_by(ori) |>
+  mutate(cnt = n()) |>
+  filter(cnt >= 15 ) |>
+  ungroup() |> 
+  distinct(ori, year, .keep_all = TRUE)
+ 
+total_level_ur_panel <- pdata.frame(total_level_ur_dat, index = c("ori", "year"))
+
+total_level_ips <- plm::purtest(murder_tot_total ~ 1, test = "ips", lags = 1, data = total_level_ur_panel)
+
+total_level_madwu <- plm::purtest(murder_tot_total ~ 1, test = "madwu", lags = 1, data = total_level_ur_panel)
+
+total_level_Pm <- plm::purtest(murder_tot_total ~ 1, test = "Pm", lags = 1, data = total_level_ur_panel)
+
+total_level_ips
+total_level_madwu
+total_level_Pm 
+```
+
+#### Individual ADFs 
+
+```{r}
+nested_data_total_clean <- nested_data |> 
+  mutate(data = map(data, ~ {
+    df <- filter(.x, !is.na(murder_tot_total))
+    if (nrow(df) >= 15 && sd(df$murder_tot_total) > 0) df else NULL
+  })) |> 
+  filter(!map_lgl(data, is.null))
+
+adf_results_total <- nested_data_total_clean |> 
+  mutate(ADF_total = map(data, ~ ur.df(.x$murder_tot_total, lags = 1, type = "none"))) |> 
+  mutate(
+    test_stat = map_dbl(ADF_total, ~ .x@teststat["statistic", "tau1"]),
+    p_value = map_dbl(ADF_total, ~ {
+  if (!is.null(.x)) {
+    ts <- .x@teststat["statistic", "tau1"]
+    cvals <- .x@cval["tau1", ]
+    approx(
+      x = cvals,
+      y = c(0.01, 0.05, 0.10),
+      xout = ts,
+      rule = 2
+    )$y
+  } else {
+    NA_real_
+  }
+}
+  )
+)|> 
+  select(test_stat, p_value)
+
+adf_results_total <- na.omit(adf_results_total) |> mutate(
+  Signifigance = if_else (p_value <= 0.05, 1, 0))
+
+pct_sig_total <- 100 - (100 * (sum(adf_results_total$Signifigance) / length(adf_results_total$Signifigance)))
+
+cat(pct_sig_total, "% of agencies fail to reject the null hypothesis at the 5% signifigance level.")
+```
+
+### First Difference 
+
+```{r}
+total_fd_ur_dat <- dat |>
+  arrange(ori, year) |>
+  filter(!is.na(murder_total_d)) |>
+  group_by(ori) |>
+  mutate(cnt = n()) |>
+  filter(cnt >= 15) |>
+  ungroup() |> 
+  distinct(ori, year, .keep_all = TRUE)
+
+fd_gap_summary <- total_fd_ur_dat %>%
+  distinct(ori, year) %>%  # Remove duplicate year entries if any
+  group_by(ori) %>%
+  arrange(year, .by_group = TRUE) %>%
+  mutate(year_gap = year - lag(year)) %>%
+  summarise(max_gap = max(year_gap, na.rm = TRUE)) %>%
+  ungroup()
+
+cat("The average of the largest gap within each ori is:", mean(fd_gap_summary$max_gap))
+
+total_fd_ur_panel <- pdata.frame(total_fd_ur_dat, index = c("ori", "year"))
+
+total_fd_ips <- plm::purtest(murder_total_d ~ 1, test = "ips", lags = 1, data = total_fd_ur_panel)
+
+total_fd_madwu <- plm::purtest(murder_tot_total ~ 1, test = "madwu", lags = 1, data = total_level_ur_panel)
+
+total_fd_Pm <- plm::purtest(murder_tot_total ~ 1, test = "Pm", lags = 1, data = total_level_ur_panel)
+
+total_fd_ips
+total_fd_madwu
+total_fd_Pm
+```
+
+#### Individual ADFs
+
+```{r}
+nested_data_fd_total_clean <- nested_data |> 
+  mutate(data = map(data, ~ {
+    df <- filter(.x, !is.na(murder_total_d))
+    if (nrow(df) >= 15 && sd(df$murder_total_d) > 0) df else NULL
+  })) |> 
+  filter(!map_lgl(data, is.null))
+
+adf_results_fd_total <- nested_data_fd_total_clean |> 
+  mutate(ADF_fd_total = map(data, ~ ur.df(.x$murder_total_d, lags = 1, type = "none"))) |> 
+  mutate(
+    test_stat = map_dbl(ADF_fd_total, ~ .x@teststat["statistic", "tau1"]),
+    p_value = map_dbl(ADF_fd_total, ~ {
+  if (!is.null(.x)) {
+    ts <- .x@teststat["statistic", "tau1"]
+    cvals <- .x@cval["tau1", ]
+    approx(
+      x = cvals,
+      y = c(0.01, 0.05, 0.10),
+      xout = ts,
+      rule = 2
+    )$y
+  } else {
+    NA_real_
+  }
+}
+  )
+)|> 
+  select(test_stat, p_value)
+
+adf_results_fd_total <- na.omit(adf_results_fd_total) |> mutate(
+  Signifigance = if_else (p_value <= 0.05, 1, 0) 
+)
+
+pct_sig_fd_total <- 100 - (100 * (sum(adf_results_fd_total$Signifigance) / length(adf_results_fd_total$Signifigance)))
+
+cat(pct_sig_fd_total, "% of agencies fail to reject the null hypothesis at the 5% signifigance level.")
+```
+
+## Clearance Rates
+
+### Levels 
+
+```{r}
+clearance_level_dat <- dat |> 
+  select(ori, year, clearance,) |> 
+  filter(!is.na(clearance), !is.na(ori), !is.na(year)) |>
+  arrange(ori, year) |>
+  filter(!is.na(clearance)) |>
+  group_by(ori) |>
+  mutate(cnt = n()) |>
+  filter(cnt >= 24 ) |>
+  ungroup() |> 
+  distinct(ori, year, .keep_all = TRUE)
+
+clearance_panel <- pdata.frame(clearance_level_dat, index = c("ori", "year"))
+
+
+clearance_level_ips <- plm::purtest(clearance ~ 1 , test = "ips", lags = 1, data = clearance_panel)
+
+clearance_level_madwu <- plm::purtest(clearance ~ 1, test = "madwu", lags = 1, data = clearance_panel)
+
+clearance_level_Pm <- plm::purtest(clearance ~ 1, test = "Pm", lags = 1, data = clearance_panel)
+
+clearance_level_ips
+clearance_level_madwu
+clearance_level_Pm 
+```
+
+```{r}
+nested_data_clearance_clean <- nested_data |> 
+  mutate(data = map(data, ~ {
+    df <- filter(.x, !is.na(clearance))
+    if (nrow(df) >= 15 && sd(df$clearance) > 0) df else NULL
+  })) |> 
+  filter(!map_lgl(data, is.null))
+
+adf_results_clearance <- nested_data_clearance_clean |> 
+  mutate(ADF_clearance = map(data, ~ ur.df(.x$clearance, lags = 1, type = "none"))) |> 
+  mutate(
+    test_stat = map_dbl(ADF_clearance, ~ .x@teststat["statistic", "tau1"]),
+    p_value = map_dbl(ADF_clearance, ~ {
+  if (!is.null(.x)) {
+    ts <- .x@teststat["statistic", "tau1"]
+    cvals <- .x@cval["tau1", ]
+    approx(
+      x = cvals,
+      y = c(0.01, 0.05, 0.10),
+      xout = ts,
+      rule = 2
+    )$y
+  } else {
+    NA_real_
+  }
+}
+  )
+)|> 
+  select(test_stat, p_value)
+
+adf_results_clearance <- na.omit(adf_results_clearance) |> mutate(
+  Signifigance = if_else (p_value <= 0.05, 1, 0) 
+)
+
+pct_sig_clearance <- 100 - (100 * (sum(adf_results_clearance$Signifigance) / length(adf_results_clearance$Signifigance)))
+
+cat(pct_sig_clearance, "% of agencies fail to reject the null hypothesis at the 5% signifigance level")
+```
+
+### First Difference 
+
+```{r}
+clearance_fd_dat <- dat |> 
+  select(ori, year, clearance_total_d,) |> 
+  filter(!is.na(clearance_total_d), !is.na(ori), !is.na(year)) |>
+  arrange(ori, year) |>
+  group_by(ori) |>
+  mutate(cnt = n()) |>
+  filter(cnt == 23 ) |>
+  ungroup() |> 
+  distinct(ori, year, .keep_all = TRUE)
+
+clearance_fd_panel <- pdata.frame(clearance_fd_dat, index = c("ori", "year"))
+
+clearance_fd_ips <- plm::purtest(clearance_total_d ~ 1 , test = "ips", lags = 1, data = clearance_fd_panel)
+
+clearance_fd_madwu <- plm::purtest(clearance_total_d ~ 1, test = "madwu", lags = 1, data = clearance_fd_panel)
+
+clearance_fd_Pm <- plm::purtest(clearance_total_d ~ 1, test = "Pm", lags = 1, data = clearance_fd_panel)
+
+clearance_fd_ips
+clearance_fd_madwu
+clearance_fd_Pm 
+```
+
+```{r}
+nested_data_clearance_fd_clean <- nested_data |> 
+  mutate(data = map(data, ~ {
+    df <- filter(.x, !is.na(clearance_total_d))
+    if (nrow(df) >= 15 && sd(df$clearance_total_d) > 0) df else NULL
+  })) |> 
+  filter(!map_lgl(data, is.null))
+
+adf_results_clearance_fd <- nested_data_clearance_fd_clean |> 
+  mutate(ADF_fd_clearance = map(data, ~ ur.df(.x$clearance_total_d, lags = 1, type = "none"))) |> 
+  mutate(
+    test_stat = map_dbl(ADF_fd_clearance, ~ .x@teststat["statistic", "tau1"]),
+    p_value = map_dbl(ADF_fd_clearance, ~ {
+  if (!is.null(.x)) {
+    ts <- .x@teststat["statistic", "tau1"]
+    cvals <- .x@cval["tau1", ]
+    approx(
+      x = cvals,
+      y = c(0.01, 0.05, 0.10),
+      xout = ts,
+      rule = 2
+    )$y
+  } else {
+    NA_real_
+  }
+}
+  )
+)|> 
+  select(test_stat, p_value)
+
+adf_results_clearance_fd <- na.omit(adf_results_clearance_fd) |> mutate(
+  Signifigance = if_else (p_value <= 0.05, 1, 0) 
+)
+
+pct_sig_clearance_fd <- 100 - (100 * (sum(adf_results_clearance_fd$Signifigance) / length(adf_results_clearance_fd$Signifigance)))
+
+cat(pct_sig_clearance_fd, "% of agencies fail to reject the null hypothesis at the 5% signifigance level")
+```
+
+
