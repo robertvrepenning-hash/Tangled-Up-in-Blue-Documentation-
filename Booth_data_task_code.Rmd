@@ -1,0 +1,321 @@
+---
+title: "Data Task"
+date: "09/14/2025"
+output:
+  pdf_document:
+    latex_engine: lualatex
+  html_document: default
+fontsize: 11pt
+geometry: margin=1in
+header-includes:
+  - \usepackage{tabularray}
+  - \usepackage{float}
+  - \usepackage{graphicx}
+  - \setlength\parindent{24pt}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(ggplot2)
+library(tidyverse)
+library(readxl)
+library(survey)
+library(scales)
+library(dplyr)
+```
+
+```{r}
+dat <- read.csv("RA_21_22.csv") |>  
+  mutate(wealth_total = asset_total - debt_total,
+         wealth_housing = asset_housing - debt_housing,
+         wealth_non_housing = wealth_total - wealth_housing)
+```
+
+
+## \centering Question 1
+
+```{r, fig.show="hold", out.width="50%"}
+median_wealth_race <- dat |>
+  group_by(race, year) |> 
+  summarize(median_wealth_total = median(wealth_total, weights = weight))
+
+median_wealth_race_log <- median_wealth_race |>
+  mutate(median_wealth_total_log = log(median_wealth_total))
+
+median_wealth_by_race_log <- ggplot(median_wealth_race_log, aes(x = year, y = median_wealth_total_log, color = race)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  scale_y_log10(labels = label_log()) +
+  labs(x = "Year", 
+       y = "Log(Median Total Wealth)",
+       title = "Figure 2: Log Median Total Wealth by Race", 
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+
+median_wealth_race_1000 <- median_wealth_race |> 
+  mutate(median_wealth_total_1000 = median_wealth_total / 1000)
+
+median_wealth_by_race_1000 <- ggplot(median_wealth_race_1000, aes(x = year, y = median_wealth_total_1000, color = race)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  labs(x = "Year", 
+       y = "Median Total Wealth (Thousands of Dollars)",
+       title = "Figure 1: Median Total Wealth by Race", 
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+
+median_wealth_by_race_1000
+
+median_wealth_by_race_log
+```
+
+```{r}
+mean_median_wealth_race <- median_wealth_race |> 
+  group_by(race) |> 
+  summarise(mean_wealth = mean(median_wealth_total, na.rm = TRUE))
+
+white_mean_median_wealth_race <- as.numeric(mean_median_wealth_race[4, "mean_wealth"])
+other_mean_median_wealth_race <- as.numeric(mean_median_wealth_race[3, "mean_wealth"])
+black_mean_median_wealth_race <- as.numeric(mean_median_wealth_race[2, "mean_wealth"])
+hispanic_mean_median_wealth_race <- as.numeric(mean_median_wealth_race[1, "mean_wealth"])
+
+```
+
+Median total wealth has followed several distinct trends over the last 30 years. One clear pattern is that the wealth of white and other households is considerably higher than that of Hispanic and Black household. Over this period, the average median wealth for the white and other groups was `r scales::dollar(white_mean_median_wealth_race)` and `r scales::dollar(other_mean_median_wealth_race)`, respectively. In contrast, the average median wealth of the Black and Hispanic groups was `r scales::dollar(black_mean_median_wealth_race)` and `r scales::dollar(hispanic_mean_median_wealth_race)`, respectively.
+
+Throughout this series, median wealth has experienced a few distinct shocks. Figure 1 shows Median Total Wealth by race in thousands of dollars. Based on this graph, the most drastic drop in median total wealth happened between 2007 and 2010, which coincides with the Great Recession. When subsetted by race, this drop only appears to be drastic for the white and other groups. However, when median total wealth is expressed in log terms (Figure 2), this distinct decrease in wealth is present for all racial groups represented. Interestingly, in the years leading up to the Great Recession (2004-2007), the black group experienced a decrease in wealth that was similar in size to the one in the period after the recession. After 2010, the white and other groups have seen continuous growth, while the black and Hispanic groups followed a similar trend after 2013. 
+
+There appears to be another distinct drop that occurred during the 1995 to 1998 period. However, this distinct drop in median total wealth did not occur in the white group. Table 2 depicts this trend well. Instead of a sharp drop during this period, the white group actually sees an increase in wealth. Following this shock, all groups experience some growth before the previously mentioned drops from 2007 to 2008. However, the Black group experiences one year of growth before witnessing a somewhat gentle decline in wealth, which persists until 2013. 
+
+```{r, fig.show="hold", out.width="50%"}
+median_wealth_educ <- median_wealth_educ <- dat |>
+  group_by(education, year) |> 
+  summarize(median_wealth_total = median(wealth_total, weights = weight))
+
+median_wealth_educ_log <- median_wealth_educ |> 
+  mutate(median_wealth_total_log = log(median_wealth_total))
+
+median_wealth_educ_log <- ggplot(median_wealth_educ_log, aes(x = year, y = median_wealth_total_log, color = education)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  scale_y_log10(labels = label_log()) +
+   labs(x = "Year", 
+       y = "Log(Median Total Wealth)",
+       title = "Figure 4: Log Median Total Wealth by Education",
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+
+median_wealth_educ_1000 <- median_wealth_educ |> 
+  mutate(median_wealth_total_1000 = median_wealth_total / 1000)
+
+median_wealth_educ_1000 <- ggplot(median_wealth_educ_1000, aes(x = year, y = median_wealth_total_1000, color = education))+
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  labs(x = "Year", 
+       y = "Median Total Wealth (Thousands of Dollars)",
+       title = "Figure 3: Median Total Wealth by Education",
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+median_wealth_educ_1000
+
+median_wealth_educ_log
+```
+
+```{r}
+mean_median_wealth_educ <- median_wealth_educ |> 
+  group_by(education) |> 
+  summarise(mean_wealth = mean(median_wealth_total, na.rm = TRUE))
+
+college_mean_median_wealth_race <- as.numeric(mean_median_wealth_educ[1, "mean_wealth"])
+nocollege_mean_median_wealth_race <- as.numeric(mean_median_wealth_educ[2, "mean_wealth"])
+somecollege_mean_median_wealth_race <- as.numeric(mean_median_wealth_educ[3, "mean_wealth"])
+```
+
+When median total wealth is broken down by educational attainment, clear differences emerge between groups. Figure 3 shows that individuals with a college degree have significantly greater wealth than those with only some college or no college education. The average median wealth for college-educated individuals is `r scales::dollar(college_mean_median_wealth_race)`. Those with some college consistently hold more wealth than individuals with no college experience, with average median wealth of `r scales::dollar(somecollege_mean_median_wealth_race)` and `r scales::dollar(nocollege_mean_median_wealth_race)`, respectively.
+
+Figure 4 shows that median total wealth has experienced similar shocks regardless of education. Again, the most prominent shock to wealth occurred during the 2007-2010 period, which coincided with the Great Recession. Interestingly, after 2010, wealth immediately began to grow again for the college group, while the other two groups saw more decreases in total wealth before beginning to grow again after 2013. Figure 4 also shows that total wealth was lower in 2016 than in 1989 for all groups, regardless of educational level. This trend is not present when the median total wealth is instead subsetted by race. 
+
+## \centering Question 2 
+
+```{r fig.align='center', out.width="50%"}
+median_wealth_housing_race <- dat |>
+  group_by(race, year) |> 
+  dplyr::filter(race == "white" | race == "black") |> 
+  summarize(median_wealth_housing = median(wealth_housing, weights = weight))
+
+median_wealth_housing_1000 <- median_wealth_housing_race |> 
+  mutate(median_wealth_housing_1000 = median_wealth_housing / 1000)
+
+median_wealth_housing_1000 <- ggplot(median_wealth_housing_1000, aes(x = year, y = median_wealth_housing_1000, color = race))+
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  labs(x = "Year", 
+       y = "Median Housing Wealth (Thousands of Dollars)",
+       title = "Figure 5: Median Housing Wealth by Race",
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+median_wealth_housing_1000
+
+black_non_homeowners <- dat |> filter(race == "black"& wealth_housing == 0)
+
+black_respondents <- dat |> filter(race == "black")
+
+pct_black_non_homeowners <- round((nrow(black_non_homeowners) / nrow(black_respondents)) * 100, digits = 2)
+```
+
+Figure 5 shows the median housing wealth of black and white households over the last 30 years. For Black households, median housing wealth was consistently $0. This phenomenon can be attributed to the fact that %`r pct_black_non_homeowners` of Black respondents reported zero housing wealth, which implies they are not homeowners.
+
+Median housing wealth for white households saw a drastic drop during the Great Recession (2007-2010), but it slowly recovered over the next two years. Before 2007, white housing wealth saw consistent growth, which started in 1995. Prior to 1995, white households experienced two consecutive years of consistent declines in median housing wealth.
+
+## \centering Question 3
+
+```{r}
+homeowner_black_white <- dat |>
+  filter(wealth_housing != 0 & age >= 25) |> 
+  group_by(race, year) |> 
+  dplyr::filter(race == "white" | race == "black")
+```
+
+```{r fig.show="hold", out.width="50%"}
+homeowner_nonhousing_wealth <- homeowner_black_white |> 
+  summarize(median_nonhousing = median(wealth_non_housing, weights = weighty))
+
+homeowner_nonhousing_wealth_1000 <- homeowner_nonhousing_wealth |> 
+  mutate(median_nonhousing_wealth_1000 = median_nonhousing / 1000)
+
+homeowner_nonhousing_wealth_1000 <- ggplot(homeowner_nonhousing_wealth_1000, aes(x = year, y = median_nonhousing_wealth_1000, color = race))+
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  labs(x = "Year", 
+       y = "Median Non-Housing Wealth (Thousands of Dollars)",
+       title = "Figure 6: Median Non-Housing Wealth by Race") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+homeowner_nonhousing_wealth_1000
+
+homeowner_median_wealth <- homeowner_black_white  |> 
+  summarize(median_wealth_housing = median(wealth_housing, weights = weight))
+
+homeowner_median_wealth_1000 <- homeowner_median_wealth |> 
+  mutate(median_housing_wealth_1000 = median_wealth_housing / 1000)
+
+homeowner_median_wealth_1000 <- ggplot(homeowner_median_wealth_1000, aes(x = year, y = median_housing_wealth_1000, color = race))+
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  labs(x = "Year", 
+       y = "Median Housing Wealth (Thousands of Dollars)",
+       title = "Figure 7: Median Housing Wealth by Race",
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+homeowner_median_wealth_1000
+```
+
+```{r}
+minimum_white_non_housing_wealth <- homeowner_nonhousing_wealth |> filter(race=="white") |> pull(median_nonhousing) |> min()
+maximum_black_non_housing_wealth <- homeowner_nonhousing_wealth |> filter(race=="black") |> pull(median_nonhousing) |> max()
+
+minimum_white_housing_wealth <- homeowner_median_wealth |> filter(race=="white") |> pull(median_wealth_housing) |> min()
+max_black_housing_wealth <-  homeowner_median_wealth |> filter(race=="black") |> pull(median_wealth_housing) |> max()
+```
+
+Figure 6 shows that the median non-housing wealth of white homeowners is substantially greater than that of black respondents. Over the last 30 years, the highest recorded median non-housing wealth for Black households was `r scales::dollar(maximum_black_non_housing_wealth)`. By comparison, the lowest recorded median non-housing wealth for white households was `r scales::dollar(minimum_white_non_housing_wealth)`.
+
+Figure 7 shows that the median housing wealth of white homeowners is substantially higher than that of their Black counterparts. Over the last 30 years, the minimum white median housing wealth was `r scales::dollar(minimum_white_housing_wealth)`, while the maximum Black median housing wealth was only `r scales::dollar(max_black_housing_wealth)`.
+
+```{r fig.show="hold", out.width="50%"}
+homeowner_nonhousing_wealth_log <- homeowner_nonhousing_wealth |> 
+  mutate(median_nonhousing_wealth_log = log(median_nonhousing))
+
+homeowner_nonhousing_wealth_log <- ggplot(homeowner_nonhousing_wealth_log, aes(x = year, y = median_nonhousing_wealth_log, color = race))+
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  labs(x = "Year", 
+       y = "Median Non-Housing Wealth (Thousands of Dollars)",
+       title = "Figure 8: Median Non-Housing Wealth by Race",
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+homeowner_nonhousing_wealth_log
+
+homeowner_median_wealth_log <- homeowner_median_wealth |> 
+  mutate(median_housing_wealth_log = log(median_wealth_housing))
+
+homeowner_median_wealth_log <- ggplot(homeowner_median_wealth_log, aes(x = year, y = median_housing_wealth_log, color = race))+
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1989, 2016, by = 3)) +
+  scale_y_log10(labels = label_log()) +
+  labs(x = "Year", 
+       y = "log(Median Housing Wealth)",
+       title = "Figure 9: Log Median Housing Wealth by Race",
+       subtitle = "Weighted and Re-Scaled to 2016 $") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+homeowner_median_wealth_log
+```
+
+
+```{r}
+white_2007_housing_wealth <- homeowner_median_wealth |> filter(race == "white" & year == 2007)|> pull(median_wealth_housing)
+white_2013_housing_wealth <-homeowner_median_wealth |> filter(race == "white" & year == 2013) |> pull(median_wealth_housing)
+
+white_crash_dollar <- abs(white_2013_housing_wealth - white_2007_housing_wealth)
+white_crash_proportion <- round(abs((white_2013_housing_wealth - white_2007_housing_wealth) / white_2007_housing_wealth) *100, digits = 2)
+
+black_2007_housing_wealth <- homeowner_median_wealth |> filter(race == "black" & year == 2007)|> pull(median_wealth_housing)
+black_2013_housing_wealth <-homeowner_median_wealth |> filter(race == "black" & year == 2013) |> pull(median_wealth_housing)
+
+black_crash_dollar <- abs(black_2013_housing_wealth - black_2007_housing_wealth)
+black_crash_proportion <- round(abs((black_2013_housing_wealth - black_2007_housing_wealth) / black_2007_housing_wealth)*100, digits =2)
+```
+
+Figures 8 and 9 both show relatively similar trends for homeowner non-housing and housing wealth. As expected, both graphs show distinct drops during the Great Recession. Both categories of wealth also recovered well after the Great Recession and achieved higher median values in 2016 than at the start of the series in 1989. 
+
+Black non-housing wealth grew consistently from 1989 to 1998 before gradually decreasing for the next 6 years. Housing and non-housing wealth for black households both increased significantly before the Great Recession, creating a definitive peak for both categories in 2007. 
+
+Trends in housing wealth appear remarkably similar across the two racial groups. Both groups experienced sharp declines in 1995 before rising to a peak in 2007. After 2007, white median housing wealth fell by `r scales::dollar(white_crash_dollar)`, representing a %`r white_crash_proportion ` decrease. Over the same period, Black median housing wealth declined by `r scales::dollar(black_crash_dollar)`, a %`r black_crash_proportion` decrease. During the Great Recession, white households saw larger declines in median housing wealth, both in absolute terms and as a proportion, than Black households.
+
+
+## \centering Question 4 
+
+\textbf{Hypothesis:} Discrimination in loan markets has contributed to the wealth gap between white and black Americans. 
+
+To evaluate whether discrimination in loan markets contributes to the racial wealth gap, I need evidence that borrowers of different races face systematically different loan terms in the presence of controls for creditworthiness. In particular, I would look for data showing that borrowers of color pay higher interest rates on non-mortgage loans, such as vehicle loans. Cars are depreciating assets, and thus, higher loan cost car loans would increase debt burdens without contributing to wealth. Disparities in vehicle loan terms would translate directly into differences in household net worth. Evidence of a consistent racial gap in borrowing costs strongly supports my hypothesis.
+
+The ideal data set would contain both loan terms and a racial identifier, along with information on the factors lenders typically use to determine interest rates. A national survey like the Survey of Consumer Finances would be well-suited because it provides not only borrowing outcomes (such as interest rates and balances) but also detailed controls for income, credit scores, and other socioeconomic characteristics. Evidence of non-white households carrying higher-cost non-housing debt, even after controlling for these fundamentals, would provide clear support for the claim that discrimination in loan markets contributes to the racial wealth gap in America.
+
+\textbf{Hypothesis:} Monetary policy disproportionately favors white Americans. 
+
+To evaluate whether monetary policy disproportionately favors white Americans, I would need evidence that interest rate changes produce unequal wealth effects across racial groups. Since lower interest rates primarily benefit those with existing capital who can take advantage of lower rates, I would look for data showing that white households gain more wealth than Black households following a cut in interest rates. Evidence of larger increases in housing wealth or overall asset values for white households, when compared to non-white households with similar incomes, would support the hypothesis that monetary policy amplifies existing disparities.
+
+I also need evidence on the inflationary side of monetary policy. If interest rate cuts lead to inflation, the rising cost of goods could push poorer households to rely more on credit cards. Evidence that non-housing debt rises disproportionately for non-white households after rate cuts, relative to white households with similar socioeconomic profiles, would indicate that monetary policy has an exacerbating effect on wealth inequality. Together, evidence of wealth gains concentrated among white households and debt burdens rising disproportionately in non-white households would provide strong support for my hypothesis.
+
+
+
+
+
